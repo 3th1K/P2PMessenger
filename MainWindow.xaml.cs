@@ -20,8 +20,8 @@ namespace P2PMessenger
     /// </summary>
     public partial class MainWindow : Window
     {
-        private Alice alice;
-        private Bob bob;
+        private Alice? alice;
+        private Bob? bob;
         private const int Port = 12345;
         private const string DEFAULT_USER = "alice";
         private string user = DEFAULT_USER;
@@ -36,6 +36,7 @@ namespace P2PMessenger
             {
                 Title = "Alice";
                 alice = new Alice(Port);
+                alice.MessageSent += SentMessage;
                 alice.MessageReceived += Alice_MessageReceived;
                 alice.KeyExchangeUpdated += UpdateKeyExchangeDisplay;
                 alice.Start();
@@ -44,6 +45,7 @@ namespace P2PMessenger
             {
                 Title = "Bob";
                 bob = new Bob("127.0.0.1", Port);
+                bob.MessageSent += SentMessage;
                 bob.MessageReceived += Bob_MessageReceived;
                 bob.KeyExchangeUpdated += UpdateKeyExchangeDisplay;
                 ConnectToAlice();
@@ -55,22 +57,21 @@ namespace P2PMessenger
             string message = inputTextBox.Text;
             if (!string.IsNullOrWhiteSpace(message))
             {
-                if (user == "alice")
+                if (user == "alice" && alice is not null)
                 {
                     await alice.SendMessageAsync(message);
                 }
-                else if (user == "bob")
+                else if (user == "bob" && bob is not null)
                 {
                     await bob.SendMessageAsync(message);
                 }
-                DisplayMessage($"Me > {message}");
                 inputTextBox.Clear();
             }
         }
 
         private void DisplayMessage(string message)
         {
-            messagesTextBox.AppendText(message + "\n");
+            messagesTextBox.AppendText(message + "\n______________________\n");
         }
 
         private async void ConnectToAlice()
@@ -103,6 +104,11 @@ namespace P2PMessenger
         public void UpdateSharedSecretDisplay(byte[] sharedSecret)
         {
             sharedSecretText.Text = BitConverter.ToString(sharedSecret).Replace("-", "");
+        }
+
+        private void SentMessage(string message)
+        {
+            DisplayMessage($"Me > {message}");
         }
 
         private void Alice_MessageReceived(string message)

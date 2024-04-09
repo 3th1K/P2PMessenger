@@ -16,6 +16,7 @@ namespace P2PMessenger.Networking
         private NetworkStream _networkStream;
         private StreamWriter _writer;
         public event Action<string> MessageReceived;
+        public event Action<string> MessageSent;
         private ECDiffieHellmanCng bobDH;
         private byte[] bobPublicKey;
         public delegate void KeyExchangeUpdateHandler(string status, byte[] sharedSecret);
@@ -65,10 +66,9 @@ namespace P2PMessenger.Networking
                 {
                     var encryptedMessageString = await reader.ReadLineAsync();
                     var encryptedMessageBytes = Convert.FromBase64String(encryptedMessageString);
-
                     string decryptedMessage = EncryptionService.DecryptStringFromBytes_Aes(encryptedMessageBytes, sharedSecret);
 
-                    MessageReceived?.Invoke(decryptedMessage);
+                    MessageReceived?.Invoke($"[ CYPHERTEXT ] {encryptedMessageString}\n[ PLAINTEXT ] {decryptedMessage}");
                 }
             }
         }
@@ -81,8 +81,11 @@ namespace P2PMessenger.Networking
             if (_writer == null)
                 throw new InvalidOperationException("No valid stream for sending messages.");
 
-            byte[] encryptedMessage = EncryptionService.EncryptStringToBytes_Aes(message, sharedSecret);
-            await _writer.WriteLineAsync(Convert.ToBase64String(encryptedMessage));
+            byte[] encryptedMessageBytes = EncryptionService.EncryptStringToBytes_Aes(message, sharedSecret);
+            string encryptedMessageString = Convert.ToBase64String(encryptedMessageBytes);
+            await _writer.WriteLineAsync(encryptedMessageString);
+
+            MessageSent?.Invoke($"[ CYPHERTEXT ] {encryptedMessageString}\n[ PLAINTEXT ] {message}");
         }
         
 

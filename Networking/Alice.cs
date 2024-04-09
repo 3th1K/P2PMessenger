@@ -15,6 +15,7 @@ namespace P2PMessenger.Networking
         private TcpListener _tcpListener;
         private TcpClient _tcpClient;
         public event Action<string> MessageReceived;
+        public event Action<string> MessageSent;
         private NetworkStream _networkStream;
         private StreamWriter _writer;
         private ECDiffieHellmanCng aliceDH;
@@ -68,7 +69,7 @@ namespace P2PMessenger.Networking
                     KeyExchangeUpdated?.Invoke($"Sending Alice's Public Key : {Convert.ToBase64String(alicePublicKey)}", null);
 
                     //receive bobs public key
-                    byte[] bobPublicKey = new byte[256]; // Adjust size based on expected key size
+                    byte[] bobPublicKey = new byte[256];
                     stream.Read(bobPublicKey, 0, bobPublicKey.Length);
                     KeyExchangeUpdated?.Invoke($"Received Bob's Public Key : {Convert.ToBase64String(bobPublicKey)}", null);
                     //compute
@@ -81,10 +82,9 @@ namespace P2PMessenger.Networking
                 {
                     var encryptedMessageString = await reader.ReadLineAsync();
                     var encryptedMessageBytes = Convert.FromBase64String(encryptedMessageString);
-
                     string decryptedMessage = EncryptionService.DecryptStringFromBytes_Aes(encryptedMessageBytes, sharedSecret);
-
-                    MessageReceived?.Invoke(decryptedMessage);
+                    
+                    MessageReceived?.Invoke($"[ CYPHERTEXT ] {encryptedMessageString}\n[ PLAINTEXT ] {decryptedMessage}");
                 }
             }
         }
@@ -97,8 +97,12 @@ namespace P2PMessenger.Networking
             if (_writer == null)
                 throw new InvalidOperationException("No valid stream for sending messages.");
 
-            byte[] encryptedMessage = EncryptionService.EncryptStringToBytes_Aes(message, sharedSecret);
-            await _writer.WriteLineAsync(Convert.ToBase64String(encryptedMessage));
+            byte[] encryptedMessageBytes = EncryptionService.EncryptStringToBytes_Aes(message, sharedSecret);
+            string encryptedMessageString = Convert.ToBase64String(encryptedMessageBytes);
+            await _writer.WriteLineAsync(encryptedMessageString);
+            
+            MessageSent?.Invoke($"[ CYPHERTEXT ] {encryptedMessageString}\n[ PLAINTEXT ] {message}");
+
         }
     }
 }
