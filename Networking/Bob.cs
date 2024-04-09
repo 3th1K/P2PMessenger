@@ -66,9 +66,7 @@ namespace P2PMessenger.Networking
                     var encryptedMessageString = await reader.ReadLineAsync();
                     var encryptedMessageBytes = Convert.FromBase64String(encryptedMessageString);
 
-                    byte[] key = Encoding.UTF8.GetBytes("YourEncryptionKe");
-                    byte[] iv = Encoding.UTF8.GetBytes("YourInitVectorHo");
-                    string decryptedMessage = EncryptionService.DecryptStringFromBytes_Aes(encryptedMessageBytes, key, iv);
+                    string decryptedMessage = EncryptionService.DecryptStringFromBytes_Aes(encryptedMessageBytes, sharedSecret);
 
                     MessageReceived?.Invoke(decryptedMessage);
                 }
@@ -83,9 +81,7 @@ namespace P2PMessenger.Networking
             if (_writer == null)
                 throw new InvalidOperationException("No valid stream for sending messages.");
 
-            byte[] key = Encoding.UTF8.GetBytes("YourEncryptionKe");
-            byte[] iv = Encoding.UTF8.GetBytes("YourInitVectorHo");
-            byte[] encryptedMessage = EncryptionService.EncryptStringToBytes_Aes(message, key, iv);
+            byte[] encryptedMessage = EncryptionService.EncryptStringToBytes_Aes(message, sharedSecret);
             await _writer.WriteLineAsync(Convert.ToBase64String(encryptedMessage));
         }
         

@@ -22,7 +22,7 @@ namespace P2PMessenger
     {
         private Alice alice;
         private Bob bob;
-        private const int Port = 12345; // Example port number
+        private const int Port = 12345;
         private const string DEFAULT_USER = "alice";
         private string user = DEFAULT_USER;
         public MainWindow()
@@ -30,7 +30,7 @@ namespace P2PMessenger
             InitializeComponent();
 
             string[] args = Environment.GetCommandLineArgs();
-            user = args.Length > 1 ? args[1].ToLower() : DEFAULT_USER; // Default to Alice
+            user = args.Length > 1 ? args[1].ToLower() : DEFAULT_USER;
 
             if (user == "alice")
             {
@@ -43,7 +43,7 @@ namespace P2PMessenger
             else if (user == "bob")
             {
                 Title = "Bob";
-                bob = new Bob("127.0.0.1", Port); // Adjust serverAddress as needed
+                bob = new Bob("127.0.0.1", Port);
                 bob.MessageReceived += Bob_MessageReceived;
                 bob.KeyExchangeUpdated += UpdateKeyExchangeDisplay;
                 ConnectToAlice();
@@ -55,7 +55,6 @@ namespace P2PMessenger
             string message = inputTextBox.Text;
             if (!string.IsNullOrWhiteSpace(message))
             {
-                // Placeholder for actual send logic
                 if (user == "alice")
                 {
                     await alice.SendMessageAsync(message);
@@ -79,7 +78,6 @@ namespace P2PMessenger
             if (bob != null)
             {
                 await bob.ConnectAsync();
-                // Now Bob can send messages to Alice and listen for replies
             }
         }
         private void UpdateKeyExchangeDisplay(string status, byte[] sharedSecret)
@@ -109,12 +107,10 @@ namespace P2PMessenger
 
         private void Alice_MessageReceived(string message)
         {
-            // Handle the received message, e.g., display it in the UI for Alice
             Dispatcher.Invoke(() => DisplayMessage($"Bob > {message}"));
         }
         private void Bob_MessageReceived(string message)
         {
-            // Handle the received message, e.g., display it in the UI for Alice
             Dispatcher.Invoke(() => DisplayMessage($"Alice > {message}"));
         }
 
