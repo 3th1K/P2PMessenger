@@ -46,7 +46,7 @@ namespace P2PMessenger.Networking
                 lastKeyUpdateTime = DateTime.Now;
             }
 
-            _ = Task.Run(() => HandleIncomingMessages());
+            _ = Task.Run(() => HandleMessages());
         }
 
         public void CheckAndRenewKey()
@@ -72,7 +72,7 @@ namespace P2PMessenger.Networking
             // Update encryption/decryption mechanisms with new shared secret
         }
 
-        public async Task HandleIncomingMessages() 
+        public async Task HandleMessages() 
         {
             if (_networkStream is not null)
             {
@@ -86,12 +86,15 @@ namespace P2PMessenger.Networking
                         if (encryptedMessageString is not null) 
                         {
                             var encryptedMessageBytes = Convert.FromBase64String(encryptedMessageString);
-                            if (encryptedMessageBytes is not null && sharedSecret is not null) 
+                            if (encryptedMessageBytes is not null && sharedSecret is not null)
                             {
                                 string decryptedMessage = EncryptionUtility.Decrypt(encryptedMessageBytes, sharedSecret);
-                                MessageReceived?.Invoke($"\t[ CYPHERTEXT ] {encryptedMessageString}\n\t[ PLAINTEXT ] {decryptedMessage}");
+                                MessageReceived?.Invoke($"[ CYPHERTEXT ]\n{encryptedMessageString}\n[ PLAINTEXT ]\n{decryptedMessage}");
                             }
-                            MessageReceived?.Invoke($"Failure");
+                            else
+                            {
+                                MessageReceived?.Invoke($"Failure");
+                            }
                         }
 
                     }
@@ -112,7 +115,7 @@ namespace P2PMessenger.Networking
                 string encryptedMessageString = Convert.ToBase64String(encryptedMessageBytes);
                 await _writer.WriteLineAsync(encryptedMessageString);
 
-                MessageSent?.Invoke($"\t[ CYPHERTEXT ] {encryptedMessageString}\n\t[ PLAINTEXT ] {message}");
+                MessageSent?.Invoke($"[ CYPHERTEXT ]\n{encryptedMessageString}\n[ PLAINTEXT ]\n{message}");
             }
         }
 

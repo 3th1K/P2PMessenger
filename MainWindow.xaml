@@ -5,26 +5,42 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:P2PMessenger"
         mc:Ignorable="d"
-        Title="MainWindow" Height="450" Width="800">
-    <Grid Margin="10">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="*" />
-            <RowDefinition Height="Auto" />
-        </Grid.RowDefinitions>
+        Title="P2P Messenger" Height="600" Width="800"
+        Background="#EEEEEE">
 
-        <StackPanel Grid.Row="0" Margin="10">
-            <TextBlock Text="Key Exchange Status:" FontWeight="Bold" />
-            <TextBlock x:Name="keyExchangeStatusText" Text="Not started" />
-            <TextBlock Text="Shared Secret:" FontWeight="Bold" />
-            <TextBlock x:Name="sharedSecretText" TextWrapping="Wrap" />
-        </StackPanel>
+    <DockPanel LastChildFill="True">
+        <!-- Header -->
+        <Border Background="#455A64" Padding="10" DockPanel.Dock="Top">
+            <TextBlock Text="P2P Messenger" Foreground="White" FontSize="18" FontWeight="Bold"/>
+        </Border>
 
-        <TextBox Grid.Row="1" x:Name="messagesTextBox" Margin="0,0,0,10" IsReadOnly="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" />
+        <!-- Main Content -->
+        <Grid Margin="10">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
 
-        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Center">
-            <TextBox x:Name="inputTextBox" HorizontalAlignment="Stretch" Width="600"/>
-            <Button x:Name="sendButton" Content="Send" Width="100" Margin="10,0,0,0" Click="SendButton_Click" IsDefault="True" />
-        </StackPanel>
-    </Grid>
+            <!-- Key Exchange Status -->
+            <Border Background="#FFFFFF" Padding="10" Margin="0,0,0,10" Grid.Row="0">
+                <StackPanel>
+                    <TextBlock Text="Key Exchange Status:" FontWeight="Bold"/>
+                    <TextBlock x:Name="keyExchangeStatusText" Text="Not started"/>
+                    <TextBlock Text="Shared Secret:" FontWeight="Bold" Margin="0,10,0,0"/>
+                    <TextBlock x:Name="sharedSecretText" TextWrapping="Wrap"/>
+                </StackPanel>
+            </Border>
+
+            <!-- Messages History -->
+            <RichTextBox Grid.Row="1" x:Name="messagesTextBox" Margin="0,0,0,10" IsReadOnly="True"
+             VerticalScrollBarVisibility="Auto" Background="#FFFFFF" Foreground="#212121"/>
+
+            <!-- Message Input -->
+            <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Center">
+                <TextBox x:Name="inputTextBox" Width="600" Margin="0,10,10,10" HorizontalAlignment="Stretch"/>
+                <Button x:Name="sendButton" IsDefault="True" Content="Send" Width="100" Margin="0,10,10,10" Click="SendButton_Click"/>
+            </StackPanel>
+        </Grid>
+    </DockPanel>
 </Window>

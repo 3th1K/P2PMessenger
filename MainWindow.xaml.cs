@@ -1,5 +1,7 @@
 ﻿using P2PMessenger.Networking;
 using System.Windows;
+using System.Windows.Documents;
+using System.Windows.Media;
 
 namespace P2PMessenger
 {
@@ -10,9 +12,11 @@ namespace P2PMessenger
     {
         private Alice? alice;
         private Bob? bob;
-        private const int Port = 12345;
+        private const int Port = 9923;
         private const string DEFAULT_USER = "alice";
+        private const string DEFAULT_USER2 = "bob";
         private string user = DEFAULT_USER;
+        private string user2 = DEFAULT_USER2;
         public MainWindow()
         {
             InitializeComponent();
@@ -22,22 +26,40 @@ namespace P2PMessenger
 
             if (user == "alice")
             {
-                Title = "Alice";
-                alice = new Alice(Port);
-                alice.MessageSent += SentMessage;
-                alice.MessageReceived += Alice_MessageReceived;
-                alice.KeyExchangeUpdated += UpdateKeyExchangeDisplay;
-                alice.Start();
+                InitAlice();
+                user2 = "bob";
             }
             else if (user == "bob")
             {
-                Title = "Bob";
-                bob = new Bob("127.0.0.1", Port);
-                bob.MessageSent += SentMessage;
-                bob.MessageReceived += Bob_MessageReceived;
-                bob.KeyExchangeUpdated += UpdateKeyExchangeDisplay;
-                ConnectToAlice();
+                InitBob();
+                user2 = "alice";
             }
+            else
+            {
+                MessageBox.Show($"Unable to fetch peer \"{user}\". Please choose Alice/Bob", "Connection Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                this.Close();
+            }
+        }
+
+        private void InitAlice()
+        {
+            Title += " - Alice";
+            alice = new Alice(Port);
+            alice.MessageSent += OnSentMessage;
+            alice.MessageReceived += OnMessageReceivedAlice;
+            alice.KeyExchangeUpdated += OnKeyExchangeUpdate;
+            alice.StartAlice();
+        }
+
+        private async void InitBob()
+        {
+            Title += " - Bob";
+            bob = new Bob("127.0.0.1", Port);
+            bob.MessageSent += OnSentMessage;
+            bob.MessageReceived += OnMessageReceivedBob;
+            bob.KeyExchangeUpdated += OnKeyExchangeUpdate;
+            await bob.ConnectAsync();
+
         }
 
         private async void SendButton_Click(object sender, RoutedEventArgs e)
@@ -57,24 +79,57 @@ namespace P2PMessenger
             }
         }
 
-        private void DisplayMessage(string message)
-        {
-            messagesTextBox.AppendText(message + "\n______________________\n");
-            messagesTextBox.ScrollToEnd();
-        }
-
-        private async void ConnectToAlice()
-        {
-            if (bob != null)
-            {
-                await bob.ConnectAsync();
-            }
-        }
-        private void UpdateKeyExchangeDisplay(string status, byte[] sharedSecret, bool clean = false)
+        private void DisplayMessage(string message, bool isSent)
         {
             Dispatcher.Invoke(() =>
             {
-                UpdateKeyExchangeStatus(status, clean);
+                // Determine the sender name and set appropriate colors
+                string senderName = isSent ? "ME" : user2.ToUpper(); // Assuming 'user' holds the name of the other participant
+                SolidColorBrush messageColor = isSent ? new SolidColorBrush(Colors.Blue) : new SolidColorBrush(Colors.Green);
+
+                // Create a new paragraph for the sender's name
+                Paragraph nameParagraph = new Paragraph(new Run(senderName)
+                {
+                    Foreground = new SolidColorBrush(Colors.DarkGray),
+                    FontWeight = FontWeights.Bold
+                })
+                {
+                    TextAlignment = isSent ? TextAlignment.Right : TextAlignment.Left
+                };
+
+                // Create a new paragraph for the message text
+                Paragraph messageParagraph = new Paragraph(new Run(message)
+                {
+                    Foreground = messageColor
+                })
+                {
+                    TextAlignment = isSent ? TextAlignment.Right : TextAlignment.Left
+                };
+
+                // Optional: Add a timestamp for each message
+                string timestamp = DateTime.Now.ToString("hh:mm:ss tt");
+                messageParagraph.Inlines.Add(new Run($"\n{timestamp}")
+                {
+                    Foreground = new SolidColorBrush(Colors.Gray),
+                    FontSize = 10,
+                    FontWeight = FontWeights.Normal
+                });
+
+                // Add the paragraphs to the RichTextBox
+                messagesTextBox.Document.Blocks.Add(nameParagraph);
+                messagesTextBox.Document.Blocks.Add(messageParagraph);
+
+                // Ensure the latest message is visible
+                messagesTextBox.ScrollToEnd();
+            });
+        }
+
+
+        private void OnKeyExchangeUpdate(string status, byte[]? sharedSecret, bool clean = false)
+        {
+            Dispatcher.Invoke(() =>
+            {
+                UpdateSharedSecretStatus(status, clean);
                 if (sharedSecret != null)
                 {
                     UpdateSharedSecretDisplay(sharedSecret);
@@ -85,7 +140,7 @@ namespace P2PMessenger
                 }
             });
         }
-        public void UpdateKeyExchangeStatus(string status, bool clean = false)
+        public void UpdateSharedSecretStatus(string status, bool clean = false)
         {
             if (clean)
             {
@@ -95,7 +150,7 @@ namespace P2PMessenger
             {
                 keyExchangeStatusText.Text += "\n" + $"[{DateTime.Now}] - " + status;
             }
-            
+
         }
 
         public void UpdateSharedSecretDisplay(byte[] sharedSecret)
@@ -103,18 +158,18 @@ namespace P2PMessenger
             sharedSecretText.Text = $"Updated [{DateTime.Now}] - " + BitConverter.ToString(sharedSecret).Replace("-", "");
         }
 
-        private void SentMessage(string message)
+        private void OnSentMessage(string message)
         {
-            DisplayMessage($"Me > {message}");
+            DisplayMessage($"{message}", true);
         }
 
-        private void Alice_MessageReceived(string message)
+        private void OnMessageReceivedAlice(string message)
         {
-            Dispatcher.Invoke(() => DisplayMessage($"Bob > {message}"));
+            Dispatcher.Invoke(() => DisplayMessage($"{message}", false));
         }
-        private void Bob_MessageReceived(string message)
+        private void OnMessageReceivedBob(string message)
         {
-            Dispatcher.Invoke(() => DisplayMessage($"Alice > {message}"));
+            Dispatcher.Invoke(() => DisplayMessage($"{message}", false));
         }
 
     }

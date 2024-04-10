@@ -20,9 +20,12 @@ public static class EncryptionUtility
     /// <returns>Encrypted byte array</returns>
     public static byte[] Encrypt(string plainText, byte[] sharedSecret)
     {
-        // Derive keys & iv
-        var (aesKey, aesIv) = DeriveKeyAndIV(sharedSecret);
-        var (desKey, desIv) = DeriveKeyAndIV(sharedSecret, 192, 8);
+        // Incorporate a nonce for uniqueness
+        byte[] nonce = BitConverter.GetBytes(DateTime.UtcNow.Ticks);
+
+        // Derive keys & iv with nonce
+        var (aesKey, aesIv) = DeriveKeyAndIV(sharedSecret.Concat(nonce).ToArray());
+        var (desKey, desIv) = DeriveKeyAndIV(sharedSecret.Concat(nonce).ToArray(), 192, 8);
 
         // Encrypt with AES & XOR - layer 1
         byte[] aesEncryption = EncryptWithAes(plainText, aesKey, aesIv);
@@ -32,8 +35,10 @@ public static class EncryptionUtility
         byte[] desEncryption = EncryptWithTripleDes(aesEncryption, desKey, desIv);
         desEncryption = XorWithPseudoRandomSequence(desEncryption, desKey);
 
-        return desEncryption;
+        // Include the nonce in the output to ensure uniqueness and for use in decryption
+        return nonce.Concat(desEncryption).ToArray();
     }
+
 
     /// <summary>
     /// Main decryption method
@@ -41,11 +46,15 @@ public static class EncryptionUtility
     /// <param name="encryptedData">Encrypted byte array that will be decrypted</param>
     /// <param name="sharedSecret">Shared secret to be used in decryption</param>
     /// <returns>Decrypted plain text</returns>
-    public static string Decrypt(byte[] encryptedData, byte[] sharedSecret)
+    public static string Decrypt(byte[] encryptedDataWithNonce, byte[] sharedSecret)
     {
-        // Derive keys & iv
-        var (aesKey, aesIv) = DeriveKeyAndIV(sharedSecret);
-        var (desKey, desIv) = DeriveKeyAndIV(sharedSecret, 192, 8);
+        // Extract the nonce from the beginning of the encrypted data
+        byte[] nonce = encryptedDataWithNonce.Take(8).ToArray();  // Assuming 8 bytes for the DateTime.Ticks nonce
+        byte[] encryptedData = encryptedDataWithNonce.Skip(8).ToArray();
+
+        // Derive keys & iv with nonce
+        var (aesKey, aesIv) = DeriveKeyAndIV(sharedSecret.Concat(nonce).ToArray());
+        var (desKey, desIv) = DeriveKeyAndIV(sharedSecret.Concat(nonce).ToArray(), 192, 8);
 
         // Reverse the process: DES decryption and XOR
         encryptedData = XorWithPseudoRandomSequence(encryptedData, desKey);
@@ -56,8 +65,8 @@ public static class EncryptionUtility
         string decrypted = DecryptWithAes(decryptedBytes, aesKey, aesIv);
 
         return decrypted;
-
     }
+
 
     #endregion
 

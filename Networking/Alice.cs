@@ -1,28 +1,24 @@
 ﻿using P2PMessenger.Security;
-using System;
 using System.IO;
 using System.Net;
-using System.Net.Http;
 using System.Net.Sockets;
 using System.Security.Cryptography;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace P2PMessenger.Networking
 {
     public class Alice
     {
         private TcpListener _tcpListener;
-        private TcpClient _tcpClient;
-        public event Action<string> MessageReceived;
-        public event Action<string> MessageSent;
-        private NetworkStream _networkStream;
-        private StreamWriter _writer;
+        private TcpClient? _tcpClient;
+        public event Action<string>? MessageReceived;
+        public event Action<string>? MessageSent;
+        private NetworkStream? _networkStream;
+        private StreamWriter? _writer;
         private ECDiffieHellmanCng aliceDH;
         private byte[] alicePublicKey;
-        public delegate void KeyExchangeUpdateHandler(string status, byte[] sharedSecret, bool clean = false);
-        public event KeyExchangeUpdateHandler KeyExchangeUpdated;
-        private byte[] sharedSecret = null;
+        public delegate void KeyExchangeUpdateHandler(string status, byte[]? sharedSecret, bool clean = false);
+        public event KeyExchangeUpdateHandler? KeyExchangeUpdated;
+        private byte[]? sharedSecret;
         private DateTime lastKeyUpdateTime;
         private const int KeyUpdateInterval = 1;
 
@@ -33,10 +29,10 @@ namespace P2PMessenger.Networking
             alicePublicKey = SharedKeyUtility.GetPublicKey(aliceDH);
         }
 
-        public void Start()
+        public void StartAlice()
         {
             _tcpListener.Start();
-            Task.Run(() => AcceptClients());
+            Task.Run(() => StartAcceptingClients());
         }
 
         public void CheckAndRenewKey()
@@ -51,22 +47,22 @@ namespace P2PMessenger.Networking
         {
             // Regenerate DH parameters and perform key exchange as done initially
             aliceDH = SharedKeyUtility.GenerateEcdhKey();
+
             // Send new public key to Bob and receive Bob's new public key, compute new shared secret
             alicePublicKey = SharedKeyUtility.GetPublicKey(aliceDH);
-            // Assume method for exchanging DH public keys and computing shared secret
-            //using var stream = _tcpClient.GetStream();
-            ExchangePublicKeys(_networkStream);
+            
+            if(_networkStream is not null)
+                ExchangePublicKeys(_networkStream);
 
             lastKeyUpdateTime = DateTime.Now;
-            // Update encryption/decryption mechanisms with new shared secret
         }
 
-        private async Task AcceptClients()
+        private async Task StartAcceptingClients()
         {
             while (true)
             {
                 TcpClient client = await _tcpListener.AcceptTcpClientAsync();
-                Task.Run(() => HandleClient(client));
+                _ = Task.Run(() => HandleClient(client));
             }
         }
 
@@ -91,39 +87,39 @@ namespace P2PMessenger.Networking
                     ExchangePublicKeys(stream);
                     lastKeyUpdateTime = DateTime.Now;
                 }
+
                 CheckAndRenewKey();
 
                 if (stream.DataAvailable)
                 {
                     var encryptedMessageString = await reader.ReadLineAsync();
-                    var encryptedMessageBytes = Convert.FromBase64String(encryptedMessageString);
-                    try
+
+                    if (encryptedMessageString is not null && sharedSecret is not null)
                     {
+                        var encryptedMessageBytes = Convert.FromBase64String(encryptedMessageString);
                         string decryptedMessage = EncryptionUtility.Decrypt(encryptedMessageBytes, sharedSecret);
-                        MessageReceived?.Invoke($"\t[ CYPHERTEXT ] {encryptedMessageString}\n\t[ PLAINTEXT ] {decryptedMessage}");
+                        MessageReceived?.Invoke($"[ CYPHERTEXT ]\n{encryptedMessageString}\n[ PLAINTEXT ]\n{decryptedMessage}");
                     }
-                    catch (Exception ex) { 
-                    }
-                    
-                    
-                    
                 }
             }
         }
 
         public async Task SendMessageAsync(string message)
         {
-            if (!_tcpClient.Connected)
+            if (_tcpClient is not null && !_tcpClient.Connected)
                 throw new InvalidOperationException("Client is not connected.");
 
             if (_writer == null)
                 throw new InvalidOperationException("No valid stream for sending messages.");
 
-            byte[] encryptedMessageBytes = EncryptionUtility.Encrypt(message, sharedSecret);
-            string encryptedMessageString = Convert.ToBase64String(encryptedMessageBytes);
-            await _writer.WriteLineAsync(encryptedMessageString);
-            
-            MessageSent?.Invoke($"\t[ CYPHERTEXT ] {encryptedMessageString}\n\t[ PLAINTEXT ] {message}");
+            if (sharedSecret is not null)
+            {
+                byte[] encryptedMessageBytes = EncryptionUtility.Encrypt(message, sharedSecret);
+                string encryptedMessageString = Convert.ToBase64String(encryptedMessageBytes);
+                await _writer.WriteLineAsync(encryptedMessageString);
+
+                MessageSent?.Invoke($"[ CYPHERTEXT ]\n{encryptedMessageString}\n[ PLAINTEXT ]\n{message}");
+            }
 
         }
 
