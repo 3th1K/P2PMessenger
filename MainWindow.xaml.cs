@@ -72,6 +72,7 @@ namespace P2PMessenger
         private void DisplayMessage(string message)
         {
             messagesTextBox.AppendText(message + "\n______________________\n");
+            messagesTextBox.ScrollToEnd();
         }
 
         private async void ConnectToAlice()
@@ -81,11 +82,11 @@ namespace P2PMessenger
                 await bob.ConnectAsync();
             }
         }
-        private void UpdateKeyExchangeDisplay(string status, byte[] sharedSecret)
+        private void UpdateKeyExchangeDisplay(string status, byte[] sharedSecret, bool clean = false)
         {
             Dispatcher.Invoke(() =>
             {
-                UpdateKeyExchangeStatus(status);
+                UpdateKeyExchangeStatus(status, clean);
                 if (sharedSecret != null)
                 {
                     UpdateSharedSecretDisplay(sharedSecret);
@@ -96,14 +97,22 @@ namespace P2PMessenger
                 }
             });
         }
-        public void UpdateKeyExchangeStatus(string status)
+        public void UpdateKeyExchangeStatus(string status, bool clean = false)
         {
-            keyExchangeStatusText.Text += "\n"+status;
+            if (clean)
+            {
+                keyExchangeStatusText.Text = $"[{DateTime.Now}] - " + status;
+            }
+            else
+            {
+                keyExchangeStatusText.Text += "\n" + $"[{DateTime.Now}] - " + status;
+            }
+            
         }
 
         public void UpdateSharedSecretDisplay(byte[] sharedSecret)
         {
-            sharedSecretText.Text = BitConverter.ToString(sharedSecret).Replace("-", "");
+            sharedSecretText.Text = $"Updated [{DateTime.Now}] - " + BitConverter.ToString(sharedSecret).Replace("-", "");
         }
 
         private void SentMessage(string message)

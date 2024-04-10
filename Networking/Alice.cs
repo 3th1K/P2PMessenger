@@ -1,4 +1,4 @@
-﻿using P2PMessenger.Services;
+﻿using P2PMessenger.Security;
 using System;
 using System.IO;
 using System.Net;
@@ -20,9 +20,11 @@ namespace P2PMessenger.Networking
         private StreamWriter _writer;
         private ECDiffieHellmanCng aliceDH;
         private byte[] alicePublicKey;
-        public delegate void KeyExchangeUpdateHandler(string status, byte[] sharedSecret);
+        public delegate void KeyExchangeUpdateHandler(string status, byte[] sharedSecret, bool clean = false);
         public event KeyExchangeUpdateHandler KeyExchangeUpdated;
         private byte[] sharedSecret = null;
+        private DateTime lastKeyUpdateTime;
+        private const int KeyUpdateInterval = 1;
 
         public Alice(int port)
         {
@@ -35,6 +37,28 @@ namespace P2PMessenger.Networking
         {
             _tcpListener.Start();
             Task.Run(() => AcceptClients());
+        }
+
+        public void CheckAndRenewKey()
+        {
+            if ((DateTime.Now - lastKeyUpdateTime).TotalMinutes > KeyUpdateInterval)
+            {
+                RenewKey();
+            }
+        }
+
+        private void RenewKey()
+        {
+            // Regenerate DH parameters and perform key exchange as done initially
+            aliceDH = KeyExchange.GenerateECDHKey();
+            // Send new public key to Bob and receive Bob's new public key, compute new shared secret
+            alicePublicKey = KeyExchange.GetPublicKey(aliceDH);
+            // Assume method for exchanging DH public keys and computing shared secret
+            //using var stream = _tcpClient.GetStream();
+            ExchangePublicKeys(_networkStream);
+
+            lastKeyUpdateTime = DateTime.Now;
+            // Update encryption/decryption mechanisms with new shared secret
         }
 
         private async Task AcceptClients()
@@ -64,27 +88,25 @@ namespace P2PMessenger.Networking
                 
                 if (sharedSecret is null) 
                 {
-                    //send alice public key
-                    stream.Write(alicePublicKey, 0, alicePublicKey.Length);
-                    KeyExchangeUpdated?.Invoke($"Sending Alice's Public Key : {Convert.ToBase64String(alicePublicKey)}", null);
-
-                    //receive bobs public key
-                    byte[] bobPublicKey = new byte[256];
-                    stream.Read(bobPublicKey, 0, bobPublicKey.Length);
-                    KeyExchangeUpdated?.Invoke($"Received Bob's Public Key : {Convert.ToBase64String(bobPublicKey)}", null);
-                    //compute
-                    sharedSecret = KeyExchange.ComputeSharedSecret(aliceDH, bobPublicKey);
-                    KeyExchangeUpdated?.Invoke("Generated Shared Secret", sharedSecret);
+                    ExchangePublicKeys(stream);
+                    lastKeyUpdateTime = DateTime.Now;
                 }
-                
+                CheckAndRenewKey();
 
                 if (stream.DataAvailable)
                 {
                     var encryptedMessageString = await reader.ReadLineAsync();
                     var encryptedMessageBytes = Convert.FromBase64String(encryptedMessageString);
-                    string decryptedMessage = EncryptionService.DecryptStringFromBytes_Aes(encryptedMessageBytes, sharedSecret);
+                    try
+                    {
+                        string decryptedMessage = EncryptionUtility.Decrypt(encryptedMessageBytes, sharedSecret);
+                        MessageReceived?.Invoke($"\t[ CYPHERTEXT ] {encryptedMessageString}\n\t[ PLAINTEXT ] {decryptedMessage}");
+                    }
+                    catch (Exception ex) { 
+                    }
                     
-                    MessageReceived?.Invoke($"[ CYPHERTEXT ] {encryptedMessageString}\n[ PLAINTEXT ] {decryptedMessage}");
+                    
+                    
                 }
             }
         }
@@ -97,12 +119,27 @@ namespace P2PMessenger.Networking
             if (_writer == null)
                 throw new InvalidOperationException("No valid stream for sending messages.");
 
-            byte[] encryptedMessageBytes = EncryptionService.EncryptStringToBytes_Aes(message, sharedSecret);
+            byte[] encryptedMessageBytes = EncryptionUtility.Encrypt(message, sharedSecret);
             string encryptedMessageString = Convert.ToBase64String(encryptedMessageBytes);
             await _writer.WriteLineAsync(encryptedMessageString);
             
-            MessageSent?.Invoke($"[ CYPHERTEXT ] {encryptedMessageString}\n[ PLAINTEXT ] {message}");
+            MessageSent?.Invoke($"\t[ CYPHERTEXT ] {encryptedMessageString}\n\t[ PLAINTEXT ] {message}");
 
+        }
+
+        private void ExchangePublicKeys(NetworkStream stream) 
+        {
+            //send alice public key
+            stream.Write(alicePublicKey, 0, alicePublicKey.Length);
+            KeyExchangeUpdated?.Invoke($"Sending Alice's Public Key : {Convert.ToBase64String(alicePublicKey)}", null, true);
+
+            //receive bobs public key
+            byte[] bobPublicKey = new byte[256];
+            stream.Read(bobPublicKey, 0, bobPublicKey.Length);
+            KeyExchangeUpdated?.Invoke($"Received Bob's Public Key : {Convert.ToBase64String(bobPublicKey)}", null);
+            //compute
+            sharedSecret = KeyExchange.ComputeSharedSecret(aliceDH, bobPublicKey);
+            KeyExchangeUpdated?.Invoke("Generated Shared Secret", sharedSecret);
         }
     }
 }

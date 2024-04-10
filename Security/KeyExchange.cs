@@ -1,6 +1,6 @@
 ﻿using System.Security.Cryptography;
 
-namespace P2PMessenger.Networking;
+namespace P2PMessenger.Security;
 
 public static class KeyExchange
 {

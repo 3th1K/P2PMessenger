@@ -1,4 +1,4 @@
-﻿using P2PMessenger.Services;
+﻿using P2PMessenger.Security;
 using System.Collections;
 using System.IO;
 using System.Net.Sockets;
@@ -19,9 +19,11 @@ namespace P2PMessenger.Networking
         public event Action<string> MessageSent;
         private ECDiffieHellmanCng bobDH;
         private byte[] bobPublicKey;
-        public delegate void KeyExchangeUpdateHandler(string status, byte[] sharedSecret);
+        public delegate void KeyExchangeUpdateHandler(string status, byte[] sharedSecret, bool clean = false);
         public event KeyExchangeUpdateHandler KeyExchangeUpdated;
         private byte[] sharedSecret = null;
+        private DateTime lastKeyUpdateTime;
+        private const int KeyUpdateInterval = 1;
 
         public Bob(string serverAddress, int serverPort)
         {
@@ -40,21 +42,33 @@ namespace P2PMessenger.Networking
 
             if (sharedSecret is null)
             {
-                // Receive Alice's public key
-                byte[] alicePublicKey = new byte[256]; // Adjust size based on expected key size
-                _networkStream.Read(alicePublicKey, 0, alicePublicKey.Length);
-                KeyExchangeUpdated?.Invoke($"Received Alice's Public Key : {Convert.ToBase64String(alicePublicKey)}", null);
-
-                // Send Bob's public key to Alice
-                _networkStream.Write(bobPublicKey, 0, bobPublicKey.Length);
-                KeyExchangeUpdated?.Invoke($"Sending Bob's Public Key : {Convert.ToBase64String(bobPublicKey)}", null);
-
-                // Compute the shared secret
-                sharedSecret = KeyExchange.ComputeSharedSecret(bobDH, alicePublicKey);
-                KeyExchangeUpdated?.Invoke("Generated Shared Secret", sharedSecret);
+                ExchangePublicKeys(_networkStream);
+                lastKeyUpdateTime = DateTime.Now;
             }
 
             Task.Run(() => HandleIncomingMessages());
+        }
+
+        public void CheckAndRenewKey()
+        {
+            if ((DateTime.Now - lastKeyUpdateTime).TotalMinutes > KeyUpdateInterval)
+            {
+                RenewKey();
+            }
+        }
+
+        private void RenewKey()
+        {
+            // Regenerate DH parameters and perform key exchange as done initially
+            bobDH = KeyExchange.GenerateECDHKey();
+            // Send new public key to Bob and receive Bob's new public key, compute new shared secret
+            bobPublicKey = KeyExchange.GetPublicKey(bobDH);
+            // Assume method for exchanging DH public keys and computing shared secret
+            //using var stream = _tcpClient.GetStream();
+            ExchangePublicKeys(_networkStream);
+
+            lastKeyUpdateTime = DateTime.Now;
+            // Update encryption/decryption mechanisms with new shared secret
         }
 
         public async Task HandleIncomingMessages() 
@@ -62,13 +76,14 @@ namespace P2PMessenger.Networking
             var reader = new StreamReader(_networkStream);
             while (_tcpClient.Connected)
             {
+                CheckAndRenewKey();
                 if (_networkStream.DataAvailable)
                 {
                     var encryptedMessageString = await reader.ReadLineAsync();
                     var encryptedMessageBytes = Convert.FromBase64String(encryptedMessageString);
-                    string decryptedMessage = EncryptionService.DecryptStringFromBytes_Aes(encryptedMessageBytes, sharedSecret);
+                    string decryptedMessage = EncryptionUtility.Decrypt(encryptedMessageBytes, sharedSecret);
 
-                    MessageReceived?.Invoke($"[ CYPHERTEXT ] {encryptedMessageString}\n[ PLAINTEXT ] {decryptedMessage}");
+                    MessageReceived?.Invoke($"\t[ CYPHERTEXT ] {encryptedMessageString}\n\t[ PLAINTEXT ] {decryptedMessage}");
                 }
             }
         }
@@ -81,13 +96,29 @@ namespace P2PMessenger.Networking
             if (_writer == null)
                 throw new InvalidOperationException("No valid stream for sending messages.");
 
-            byte[] encryptedMessageBytes = EncryptionService.EncryptStringToBytes_Aes(message, sharedSecret);
+            byte[] encryptedMessageBytes = EncryptionUtility.Encrypt(message, sharedSecret);
             string encryptedMessageString = Convert.ToBase64String(encryptedMessageBytes);
             await _writer.WriteLineAsync(encryptedMessageString);
 
-            MessageSent?.Invoke($"[ CYPHERTEXT ] {encryptedMessageString}\n[ PLAINTEXT ] {message}");
+            MessageSent?.Invoke($"\t[ CYPHERTEXT ] {encryptedMessageString}\n\t[ PLAINTEXT ] {message}");
         }
-        
+
+        private void ExchangePublicKeys(NetworkStream stream)
+        {
+            // Receive Alice's public key
+            byte[] alicePublicKey = new byte[256]; // Adjust size based on expected key size
+            stream.Read(alicePublicKey, 0, alicePublicKey.Length);
+            KeyExchangeUpdated?.Invoke($"Received Alice's Public Key : {Convert.ToBase64String(alicePublicKey)}", null, true);
+
+            // Send Bob's public key to Alice
+            stream.Write(bobPublicKey, 0, bobPublicKey.Length);
+            KeyExchangeUpdated?.Invoke($"Sending Bob's Public Key : {Convert.ToBase64String(bobPublicKey)}", null);
+
+            // Compute the shared secret
+            sharedSecret = KeyExchange.ComputeSharedSecret(bobDH, alicePublicKey);
+            KeyExchangeUpdated?.Invoke("Generated Shared Secret", sharedSecret);
+        }
+
 
         public void CloseConnection()
         {
