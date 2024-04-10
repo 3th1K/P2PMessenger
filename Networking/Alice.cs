@@ -29,8 +29,8 @@ namespace P2PMessenger.Networking
         public Alice(int port)
         {
             _tcpListener = new TcpListener(IPAddress.Any, port);
-            aliceDH = KeyExchange.GenerateECDHKey();
-            alicePublicKey = KeyExchange.GetPublicKey(aliceDH);
+            aliceDH = SharedKeyUtility.GenerateEcdhKey();
+            alicePublicKey = SharedKeyUtility.GetPublicKey(aliceDH);
         }
 
         public void Start()
@@ -50,9 +50,9 @@ namespace P2PMessenger.Networking
         private void RenewKey()
         {
             // Regenerate DH parameters and perform key exchange as done initially
-            aliceDH = KeyExchange.GenerateECDHKey();
+            aliceDH = SharedKeyUtility.GenerateEcdhKey();
             // Send new public key to Bob and receive Bob's new public key, compute new shared secret
-            alicePublicKey = KeyExchange.GetPublicKey(aliceDH);
+            alicePublicKey = SharedKeyUtility.GetPublicKey(aliceDH);
             // Assume method for exchanging DH public keys and computing shared secret
             //using var stream = _tcpClient.GetStream();
             ExchangePublicKeys(_networkStream);
@@ -138,7 +138,7 @@ namespace P2PMessenger.Networking
             stream.Read(bobPublicKey, 0, bobPublicKey.Length);
             KeyExchangeUpdated?.Invoke($"Received Bob's Public Key : {Convert.ToBase64String(bobPublicKey)}", null);
             //compute
-            sharedSecret = KeyExchange.ComputeSharedSecret(aliceDH, bobPublicKey);
+            sharedSecret = SharedKeyUtility.GenerateSharedSecret(aliceDH, bobPublicKey);
             KeyExchangeUpdated?.Invoke("Generated Shared Secret", sharedSecret);
         }
     }

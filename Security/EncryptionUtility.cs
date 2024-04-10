@@ -1,10 +1,13 @@
-﻿using System.Diagnostics;
-using System.IO;
+﻿using System.IO;
 using System.Security.Cryptography;
 using System.Text;
 
 namespace P2PMessenger.Security;
 
+
+/// <summary>
+/// Utility class to help with encryption/decryption.
+/// </summary>
 public static class EncryptionUtility
 {
     #region Main Encryption/Decryption
